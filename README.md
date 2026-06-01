@@ -120,6 +120,8 @@ python scripts/agnes_api.py image --prompt "Turn the scene into a rainy cyberpun
 python scripts/agnes_api.py video --prompt "A cinematic shot of a cat walking on the beach at sunset" --poll
 ```
 
+视频命令默认使用 `--num-frames 121 --frame-rate 24`，以减少缺少关键视频参数导致的不稳定。脚本会在请求前检查 `num_frames` 是否满足 `8n + 1` 且不超过 `441`，并检查帧率、尺寸等基础参数。
+
 图生视频：
 
 ```powershell
@@ -138,10 +140,34 @@ python scripts/agnes_api.py video --prompt "Create a smooth cinematic transition
 python scripts/agnes_api.py video-get task_123456
 ```
 
+默认输出会整理出常用字段，例如 `content`、`urls`、`translated_prompt`、`next_steps`，同时保留 `raw` 原始响应，方便 AI 和人工继续处理。
+
+流式文本也会聚合输出 `content`，同时保留事件数量、是否完成和原始响应前缀，便于快速判断流式接口是否正常。
+
+视频完成后，脚本会从 `video_url`、`url` 或 Agnes 实测返回中的 `remixed_from_video_id` 提取可直接访问的 mp4 链接，并放入 `urls`。
+
+若只想看 Agnes 原始响应，可以加：
+
+```powershell
+--raw
+```
+
 运行测试：
 
 ```powershell
 python scripts/agnes_api.py smoke-test
+```
+
+默认测试覆盖文本、流式文本、工具调用请求结构和文生图，不会创建视频任务。工具调用请求有时会被 Agnes 接收但不返回 `tool_calls`，默认只输出 warning；如果你想把这种情况视为失败，可以使用：
+
+```powershell
+python scripts/agnes_api.py smoke-test --strict-tools
+```
+
+测试图生图：
+
+```powershell
+python scripts/agnes_api.py smoke-test --include-image-edit
 ```
 
 单独测试某个视频能力，避免一次创建太多视频任务：
@@ -195,17 +221,20 @@ python scripts/agnes_api.py video --prompt "中文提示词" --no-translate-prom
 - 图生图
 - 高信息密度文生图
 - 中文提示词自动翻译后文生图
+- 中文提示词自动翻译后文生视频任务创建
+- 文生视频完成并返回 mp4 URL
+- 图生视频完成并返回 mp4 URL
 
-已部分验证：
+已支持但本轮未完整端到端重测：
 
-- 视频任务创建
-- 视频任务查询接口可达
+- 多图视频
+- 关键帧视频
 
 尚未完整端到端验证：
 
-- 每一种视频模式都成功返回最终 `video_url`
+- 每一种多图视频 / 关键帧视频任务都成功返回最终视频 URL
 
-说明：第一次真实文生视频任务在查询时返回 Agnes 服务端 `division by zero` 错误。因此视频模式在 skill 中已支持，但在某个任务达到 `completed` 并返回 `video_url` 前，不应标记为全部端到端通过。
+说明：曾有一次真实文生视频任务在查询时返回 Agnes 服务端 `division by zero` 错误；后续短文生视频任务已成功完成并返回 mp4 URL。因此视频能力在 skill 中已支持，但仍建议逐个模式测试并保留 provider 错误信息。
 
 ## 仓库结构
 

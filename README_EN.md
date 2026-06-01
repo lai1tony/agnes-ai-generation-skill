@@ -110,6 +110,8 @@ Text-to-video:
 python scripts/agnes_api.py video --prompt "A cinematic shot of a cat walking on the beach at sunset" --poll
 ```
 
+Video commands default to `--num-frames 121 --frame-rate 24` to reduce instability from missing core video parameters. The script validates `num_frames` before sending requests: it must satisfy `8n + 1` and be no more than `441`. It also checks frame rate and dimensions.
+
 Image-to-video:
 
 ```powershell
@@ -126,6 +128,42 @@ Retrieve a video task:
 
 ```powershell
 python scripts/agnes_api.py video-get task_123456
+```
+
+By default, command output is normalized with common fields such as `content`, `urls`, `translated_prompt`, and `next_steps`, while preserving the provider response under `raw`.
+
+Streaming text output also includes aggregated `content`, event count, completion status, and a short raw prefix so the result is easier to inspect.
+
+For completed video tasks, the script extracts direct mp4 URLs from `video_url`, `url`, or the live-response field `remixed_from_video_id`, then places them in `urls`.
+
+Add `--raw` to print only the original Agnes response:
+
+```powershell
+--raw
+```
+
+Light smoke test. By default, this checks text, streaming text, tool-calling request shape, and text-to-image only. It does not create video tasks:
+
+```powershell
+python scripts/agnes_api.py smoke-test
+```
+
+The tool-calling request can be accepted by Agnes without returning `tool_calls` consistently. By default this is reported as a warning. Use strict mode to fail in that case:
+
+```powershell
+python scripts/agnes_api.py smoke-test --strict-tools
+```
+
+Image-to-image smoke test:
+
+```powershell
+python scripts/agnes_api.py smoke-test --include-image-edit
+```
+
+Single video case test:
+
+```powershell
+python scripts/agnes_api.py smoke-test --video-case text-to-video
 ```
 
 ## Prompt Language
@@ -149,17 +187,20 @@ Confirmed by live API:
 - Image-to-image
 - High-information-density text-to-image
 - Non-English prompt auto-translation for text-to-image
+- Non-English prompt auto-translation for text-to-video task creation
+- Completed text-to-video retrieval with a direct mp4 URL
+- Completed image-to-video retrieval with a direct mp4 URL
 
-Partially confirmed:
+Supported but not fully re-tested end-to-end in the latest pass:
 
-- Video task creation
-- Video task retrieval endpoint reachability
+- Multi-image video
+- Keyframe video
 
 Not fully confirmed end-to-end yet:
 
-- Completed `video_url` retrieval for every video mode
+- Completed URL retrieval for every multi-image video and keyframe animation task
 
-The first live text-to-video retrieval returned a provider-side `division by zero` error, so video modes should be treated as supported by the skill but not fully passed until a task reaches `completed`.
+A previous live text-to-video retrieval returned a provider-side `division by zero` error; a later short text-to-video task completed successfully and returned an mp4 URL. Keep provider errors visible when retrying video modes.
 
 ## License
 

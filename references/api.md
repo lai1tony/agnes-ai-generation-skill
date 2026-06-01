@@ -91,7 +91,7 @@ Common status values:
 - `completed`
 - `failed`
 
-The completed response includes `video_url`, `size`, `seconds`, and `usage.duration_seconds`.
+The completed response usually includes a video URL. In live responses this may appear as `video_url`, `url`, or `remixed_from_video_id`, plus `size`, `seconds`, and `usage.duration_seconds`.
 
 Recommended video defaults:
 
