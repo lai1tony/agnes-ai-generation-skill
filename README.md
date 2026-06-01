@@ -1,8 +1,8 @@
 # Agnes AI Generation Skill
 
-中文 | [English](#english)
+[English](README_EN.md)
 
-用于 Codex / Agent Skills 的 Agnes AI 生成技能，封装 Agnes 官方文本、图片、视频 API。安装后，你可以让 AI 直接调用 Agnes 模型完成文生图、图生图、文生视频、图生视频、多图视频、关键帧动画等操作。
+用于 Agent Skills 的 Agnes AI 生成技能，封装 Agnes 官方文本、图片、视频 API。它采用标准 `SKILL.md` 结构，可安装到 Codex、Claude Code、OpenClaw、Cursor、Windsurf 等支持 Agent Skills 的客户端。安装后，你可以让 AI 直接调用 Agnes 模型完成文生图、图生图、文生视频、图生视频、多图视频、关键帧动画等操作。
 
 官网与 API 平台：[https://platform.agnes-ai.com/](https://platform.agnes-ai.com/)
 
@@ -38,13 +38,19 @@
 
 ### 2. 安装本 Skill
 
-使用 `npx skills add` 安装：
+安装到当前 Agent：
 
 ```powershell
-npx skills add Yacey/agnes-ai-generation-skill --skill agnes-ai-generation --agent codex --copy -g -y
+npx skills add Yacey/agnes-ai-generation-skill
 ```
 
-安装后，当你要求 AI 使用 Agnes 生成图片或视频时，AI 会自动触发本 skill。
+安装到所有支持的 Agent：
+
+```powershell
+npx skills add Yacey/agnes-ai-generation-skill --all
+```
+
+安装后，当你要求已安装的 AI Agent 使用 Agnes 生成图片或视频时，AI 会自动触发本 skill。
 
 ### 3. 配置 API Key
 
@@ -207,6 +213,7 @@ python scripts/agnes_api.py video --prompt "中文提示词" --no-translate-prom
 .
 ├── SKILL.md
 ├── README.md
+├── README_EN.md
 ├── LICENSE
 ├── agents/
 │   └── openai.yaml
@@ -217,97 +224,5 @@ python scripts/agnes_api.py video --prompt "中文提示词" --no-translate-prom
 ```
 
 ## 许可证
-
-MIT License. See [LICENSE](LICENSE).
-
----
-
-## English
-
-Agnes AI Generation Skill is a Codex / Agent Skills package for calling Agnes AI text, image, and video generation APIs. After installation, AI agents can use Agnes models for text generation, text-to-image, image-to-image, text-to-video, image-to-video, multi-image video, and keyframe animation workflows.
-
-Official platform: [https://platform.agnes-ai.com/](https://platform.agnes-ai.com/)
-
-## Features
-
-- Text generation with `agnes-2.0-flash`
-- Streaming text responses
-- OpenAI-compatible tool-calling request shape
-- Text-to-image with `agnes-image-2.1-flash`
-- Image-to-image editing with `agnes-image-2.1-flash`
-- High-information-density image generation
-- Text-to-video with `agnes-video-v2.0`
-- Image-to-video with `agnes-video-v2.0`
-- Multi-image video generation
-- Keyframe animation
-- Prompt-based motion and scene control
-- Cinematic video output
-- Asynchronous video task creation
-- Polling-based video result retrieval
-- Seed-based reproducibility
-- Automatic English prompt translation for non-English image/video prompts
-
-## Quick Start
-
-### 1. Apply for an Agnes API Key
-
-1. Open [https://platform.agnes-ai.com/](https://platform.agnes-ai.com/).
-2. Register or sign in.
-3. Create an API key from the platform.
-4. Provide the API key to the AI in a trusted current session, or configure it as a local environment variable.
-
-Do not commit API keys to Git, README files, screenshots, or public chat logs.
-
-### 2. Install This Skill
-
-```powershell
-npx skills add Yacey/agnes-ai-generation-skill --skill agnes-ai-generation --agent codex --copy -g -y
-```
-
-### 3. Configure the API Key
-
-For the current PowerShell session:
-
-```powershell
-$env:AGNES_API_KEY="YOUR_API_KEY"
-```
-
-For persistent Windows user-level configuration:
-
-```powershell
-[Environment]::SetEnvironmentVariable("AGNES_API_KEY", "YOUR_API_KEY", "User")
-```
-
-The script also accepts:
-
-- `AGNES_API_KEY`
-- `AGNES_API_TOKEN`
-- `APIHUB_AGNES_API_KEY`
-
-### 4. Use the Skill
-
-Ask your AI agent:
-
-```text
-Use Agnes to generate a high-information-density futuristic city image.
-```
-
-Or:
-
-```text
-Use Agnes to turn this image into a cinematic video.
-```
-
-## Prompt Language
-
-English prompts are more stable for Agnes video generation. For image and video calls, this skill automatically translates non-English prompts to English before sending them to the Agnes image/video APIs. It preserves subjects, scene details, style, lighting, composition, camera movement, motion, and constraints.
-
-To disable automatic translation:
-
-```powershell
-python scripts/agnes_api.py video --prompt "non-English prompt" --no-translate-prompt
-```
-
-## License
 
 MIT License. See [LICENSE](LICENSE).
