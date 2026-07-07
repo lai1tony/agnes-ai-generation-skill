@@ -1,0 +1,75 @@
+name: Desktop build
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            args: --bundles nsis
+          - platform: macos-latest
+            args: --bundles dmg --no-sign
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install chromium
+
+      - name: Verify app
+        run: npm run verify
+
+      - name: Build Tauri bundle
+        run: npm run tauri -- build ${{ matrix.args }}
+
+      - name: Verify Windows installer artifact
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installers = Get-ChildItem -Path "src-tauri/target/release/bundle/nsis" -Filter "*.exe"
+          if ($installers.Count -lt 1) {
+            throw "No NSIS installer was produced."
+          }
+          $installers | ForEach-Object { Write-Host "Installer: $($_.FullName) ($($_.Length) bytes)" }
+
+      - name: Verify macOS DMG artifact
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          dmgs=(src-tauri/target/release/bundle/dmg/*.dmg)
+          if [ "${#dmgs[@]}" -lt 1 ]; then
+            echo "No DMG artifact was produced." >&2
+            exit 1
+          fi
+          for dmg in "${dmgs[@]}"; do
+            echo "DMG: ${dmg}"
+            hdiutil verify "${dmg}"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agnes-ai-studio-${{ matrix.platform }}
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/dmg/*.dmg
+          if-no-files-found: error

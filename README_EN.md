@@ -2,6 +2,47 @@
 
 [中文](README.md)
 
+## Agnes AI Studio Desktop App
+
+This repository now keeps the original Agent Skill / CLI and adds a Tauri v2 + React + TypeScript desktop app for Windows and macOS. The desktop UI is Chinese-first. The Agnes API key is stored in the operating system secure store and is not exposed to the frontend.
+
+Desktop app capabilities:
+
+- Text generation
+- Text-to-image and image-to-image
+- Text-to-video, image-to-video, multi-image video, and keyframe video
+- Video task lookup and polling
+- Automatic English translation for non-English image/video prompts
+- Local history with metadata and remote URLs only
+- Manual media saving; generated media is not downloaded automatically
+
+Run from source:
+
+```powershell
+npm install
+npm run tauri:dev
+```
+
+Build Windows NSIS installer:
+
+```powershell
+npm run tauri:build:windows
+```
+
+Build macOS DMG:
+
+```bash
+npm run tauri:build:mac
+```
+
+Local packaging requires Node.js, the Rust toolchain, and the platform-specific Tauri dependencies. `npm run tauri:build:mac` creates an unsigned DMG for local installable package verification. Formal macOS distribution still requires Developer ID signing and notarization; use `npm run tauri:build:mac:signed` after configuring the signing environment.
+
+If the current PowerShell session still cannot find `cargo` right after installing Rust, open a new terminal or temporarily run:
+
+```powershell
+$env:PATH="$env:USERPROFILE\.cargo\bin;$env:PATH"
+```
+
 Agnes AI Generation Skill is a standard Agent Skills package for calling Agnes AI text, image, and video generation APIs. It can be installed into Codex, Claude Code, OpenClaw, Cursor, Windsurf, and other clients that support Agent Skills. After installation, AI agents can use Agnes models for text generation, text-to-image, image-to-image, text-to-video, image-to-video, multi-image video, and keyframe animation workflows.
 
 Official platform: [https://platform.agnes-ai.com/](https://platform.agnes-ai.com/)

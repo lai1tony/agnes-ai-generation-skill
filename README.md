@@ -2,6 +2,47 @@
 
 [English](README_EN.md)
 
+## Agnes AI Studio 桌面 App
+
+本仓库现在同时保留原 Agent Skill / CLI，并新增一个 Tauri v2 + React + TypeScript 桌面 App。桌面端适用于 Windows 和 macOS，中文界面，API Key 保存在系统安全存储中，前端不会读取明文。
+
+桌面端能力：
+
+- 文本生成
+- 文生图 / 图生图
+- 文生视频 / 图生视频 / 多图视频 / 关键帧视频
+- 视频任务查询与轮询
+- 非英文图片/视频提示词自动翻译为英文
+- 本地历史记录仅保存任务元数据和 URL
+- 生成媒体默认不自动下载，用户点击保存时才写入本地文件
+
+源码运行：
+
+```powershell
+npm install
+npm run tauri:dev
+```
+
+打包 Windows NSIS 安装包：
+
+```powershell
+npm run tauri:build:windows
+```
+
+打包 macOS DMG：
+
+```bash
+npm run tauri:build:mac
+```
+
+注意：本地打包需要安装 Node.js、Rust 工具链和对应平台的 Tauri 系统依赖。`npm run tauri:build:mac` 会生成未签名 DMG，适合本地安装包验证。macOS 正式外部分发还需要 Developer ID 签名和 notarization，可改用 `npm run tauri:build:mac:signed` 并配置签名环境；当前第一版目标是本地安装包。
+
+如果刚安装 Rust 后当前 PowerShell 仍找不到 `cargo`，请新开一个终端，或临时执行：
+
+```powershell
+$env:PATH="$env:USERPROFILE\.cargo\bin;$env:PATH"
+```
+
 用于 Agent Skills 的 Agnes AI 生成技能，封装 Agnes 官方文本、图片、视频 API。它采用标准 `SKILL.md` 结构，可安装到 Codex、Claude Code、OpenClaw、Cursor、Windsurf 等支持 Agent Skills 的客户端。安装后，你可以让 AI 直接调用 Agnes 模型完成文生图、图生图、文生视频、图生视频、多图视频、关键帧动画等操作。
 
 官网与 API 平台：[https://platform.agnes-ai.com/](https://platform.agnes-ai.com/)

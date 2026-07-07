@@ -19,6 +19,24 @@ TEXT_MODEL = "agnes-2.0-flash"
 IMAGE_MODEL = "agnes-image-2.1-flash"
 VIDEO_MODEL = "agnes-video-v2.0"
 SIZE_RE = re.compile(r"^[1-9]\d*x[1-9]\d*$")
+VIDEO_DIMENSIONS = {
+    ("480p", "16:9"): (848, 480),
+    ("480p", "9:16"): (480, 848),
+    ("480p", "1:1"): (480, 480),
+    ("480p", "4:3"): (640, 480),
+    ("480p", "3:4"): (480, 640),
+    ("720p", "16:9"): (1280, 720),
+    ("720p", "9:16"): (720, 1280),
+    ("720p", "1:1"): (720, 720),
+    ("720p", "4:3"): (960, 720),
+    ("720p", "3:4"): (720, 960),
+    ("1080p", "16:9"): (1920, 1080),
+    ("1080p", "9:16"): (1080, 1920),
+    ("1080p", "1:1"): (1080, 1080),
+    ("1080p", "4:3"): (1440, 1080),
+    ("1080p", "3:4"): (1080, 1440),
+}
+VIDEO_DURATIONS = {3: 81, 5: 121, 10: 241, 18: 441}
 
 
 def get_api_key() -> str:
@@ -228,6 +246,15 @@ def validate_size(value: str | None, name: str = "size") -> None:
 
 
 def validate_video_args(args: argparse.Namespace) -> None:
+    resolution = getattr(args, "resolution", None)
+    if resolution and resolution not in {"480p", "720p", "1080p"}:
+        raise SystemExit("Invalid --resolution: choose 480p, 720p, or 1080p.")
+    aspect_ratio = getattr(args, "aspect_ratio", None)
+    if aspect_ratio and aspect_ratio not in {"16:9", "9:16", "1:1", "4:3", "3:4"}:
+        raise SystemExit("Invalid --aspect-ratio: choose 16:9, 9:16, 1:1, 4:3, or 3:4.")
+    duration_seconds = getattr(args, "duration_seconds", None)
+    if duration_seconds is not None and duration_seconds not in VIDEO_DURATIONS:
+        raise SystemExit("Invalid --duration-seconds: choose 3, 5, 10, or 18.")
     if args.num_frames is not None:
         if args.num_frames > 441 or (args.num_frames - 1) % 8 != 0:
             raise SystemExit("Invalid --num-frames: must be <= 441 and satisfy 8n + 1, for example 81 or 121.")
@@ -237,6 +264,9 @@ def validate_video_args(args: argparse.Namespace) -> None:
         value = getattr(args, name)
         if value is not None and value <= 0:
             raise SystemExit(f"Invalid --{name.replace('_', '-')}: must be a positive integer.")
+    images = [value for value in (getattr(args, "image", None) or []) if value.strip()]
+    if len(images) > 1 and getattr(args, "mode", None) == "ti2vid":
+        raise SystemExit("Invalid --mode ti2vid with multiple --image values: use --mode keyframes or omit --mode.")
 
 
 def cmd_text(args: argparse.Namespace) -> None:
@@ -306,35 +336,61 @@ def video_payload(args: argparse.Namespace) -> dict[str, Any]:
         "model": VIDEO_MODEL,
         "prompt": prompt,
     }
-    for name in (
-        "height",
-        "width",
-        "num_frames",
-        "frame_rate",
-        "num_inference_steps",
-        "seed",
-        "negative_prompt",
-    ):
+    resolution = getattr(args, "resolution", None)
+    aspect_ratio = getattr(args, "aspect_ratio", None)
+    if resolution or aspect_ratio:
+        width, height = VIDEO_DIMENSIONS[(resolution or "720p", aspect_ratio or "16:9")]
+        payload["width"] = width
+        payload["height"] = height
+    else:
+        for name in ("height", "width"):
+            value = getattr(args, name)
+            if value is not None:
+                payload[name] = value
+    duration_seconds = getattr(args, "duration_seconds", None)
+    if duration_seconds is not None:
+        payload["num_frames"] = VIDEO_DURATIONS[duration_seconds]
+        payload["frame_rate"] = 24
+    else:
+        for name in ("num_frames", "frame_rate"):
+            value = getattr(args, name)
+            if value is not None:
+                payload[name] = value
+    for name in ("num_inference_steps", "seed", "negative_prompt"):
         value = getattr(args, name)
         if value is not None:
             payload[name] = value
-    if args.mode:
-        payload["mode"] = args.mode
-    if args.image:
-        if len(args.image) == 1 and args.mode != "keyframes":
-            payload["image"] = args.image[0]
+    images = [value.strip() for value in (args.image or []) if value.strip()]
+    effective_mode = args.mode or ("keyframes" if len(images) > 1 else None)
+    if effective_mode:
+        payload["mode"] = effective_mode
+    if images:
+        if len(images) == 1 and effective_mode != "keyframes":
+            payload["image"] = images[0]
         else:
-            payload["extra_body"] = {"image": args.image}
-            if args.mode:
-                payload["extra_body"]["mode"] = args.mode
+            payload["extra_body"] = {"image": images}
+            if effective_mode:
+                payload["extra_body"]["mode"] = effective_mode
     return payload
+
+
+def video_lookup_id(data: dict[str, Any]) -> str | None:
+    value = data.get("video_id") or data.get("id") or data.get("task_id")
+    return str(value) if value else None
+
+
+def video_query_path(task_id: str) -> str:
+    task_id = task_id.strip()
+    if task_id.startswith("video_"):
+        return f"/agnesapi?video_id={task_id}&model_name={VIDEO_MODEL}"
+    return f"/v1/videos/{task_id}"
 
 
 def poll_video(task_id: str, timeout: int, interval: int) -> dict[str, Any]:
     deadline = time.time() + timeout
     last: dict[str, Any] = {}
     while time.time() < deadline:
-        last = request_json("GET", f"/v1/videos/{task_id}")
+        last = request_json("GET", video_query_path(task_id))
         if last.get("error"):
             raise SystemExit(f"Video task {task_id} returned error: {json.dumps(last, ensure_ascii=False)}")
         status = str(last.get("status", "")).lower()
@@ -350,7 +406,7 @@ def poll_video(task_id: str, timeout: int, interval: int) -> dict[str, Any]:
 def cmd_video(args: argparse.Namespace) -> None:
     created = request_json("POST", "/v1/videos", video_payload(args))
     if not args.poll:
-        task_id = created.get("id")
+        task_id = video_lookup_id(created)
         next_steps = []
         if task_id:
             next_steps.append(f"python scripts/agnes_api.py video-get {task_id}")
@@ -365,9 +421,9 @@ def cmd_video(args: argparse.Namespace) -> None:
             raw_only=args.raw,
         )
         return
-    task_id = created.get("id")
+    task_id = video_lookup_id(created)
     if not task_id:
-        raise SystemExit(f"Video create response did not include id: {json.dumps(created)}")
+        raise SystemExit(f"Video create response did not include an id: {json.dumps(created)}")
     data = poll_video(str(task_id), args.timeout, args.interval)
     urls = extract_video_urls(data)
     output_result(
@@ -382,7 +438,7 @@ def cmd_video(args: argparse.Namespace) -> None:
 
 
 def cmd_video_get(args: argparse.Namespace) -> None:
-    data = request_json("GET", f"/v1/videos/{args.task_id}")
+    data = request_json("GET", video_query_path(args.task_id))
     urls = extract_video_urls(data)
     output_result(
         "video-result",
@@ -404,7 +460,9 @@ def require_ok(name: str, data: dict[str, Any], keys: tuple[str, ...]) -> None:
 
 
 def require_video_ok(name: str, data: dict[str, Any], completed: bool = False) -> None:
-    require_ok(name, data, ("id", "status"))
+    require_ok(name, data, ("status",))
+    if not video_lookup_id(data):
+        raise SystemExit(f"{name} response missing id/video_id/task_id: {json.dumps(data)}")
     if data.get("error"):
         raise SystemExit(f"{name} returned error: {json.dumps(data, ensure_ascii=False)}")
     status = str(data.get("status", "")).lower()
@@ -440,11 +498,13 @@ def extract_image_url(data: dict[str, Any]) -> str:
 def create_video_case(name: str, payload: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
     created = request_json("POST", "/v1/videos", payload)
     require_video_ok(f"{name}-create", created)
-    task_id = str(created["id"])
+    task_id = video_lookup_id(created)
+    if not task_id:
+        raise SystemExit(f"{name}-create did not include an id: {json.dumps(created, ensure_ascii=False)}")
     retrieved = (
         poll_video(task_id, args.video_timeout, args.video_interval)
         if args.poll_video
-        else request_json("GET", f"/v1/videos/{task_id}")
+        else request_json("GET", video_query_path(task_id))
     )
     require_video_ok(f"{name}-get", retrieved, completed=args.poll_video)
     return {"create": created, "get": retrieved}
@@ -457,10 +517,15 @@ def cmd_smoke_test(args: argparse.Namespace) -> None:
     validate_size(args.image_size, "image-size")
     validate_video_args(
         argparse.Namespace(
+            resolution=args.video_resolution,
+            aspect_ratio=args.video_aspect_ratio,
+            duration_seconds=args.video_duration_seconds,
             num_frames=args.video_num_frames,
             frame_rate=args.video_frame_rate,
             height=args.video_height,
             width=args.video_width,
+            image=[],
+            mode=None,
         )
     )
     text = request_json(
@@ -551,14 +616,21 @@ def cmd_smoke_test(args: argparse.Namespace) -> None:
     video_common = {
         "model": VIDEO_MODEL,
     }
-    for key, value in (
-        ("height", args.video_height),
-        ("width", args.video_width),
-        ("num_frames", args.video_num_frames),
-        ("frame_rate", args.video_frame_rate),
-    ):
-        if value is not None:
-            video_common[key] = value
+    if args.video_resolution or args.video_aspect_ratio:
+        width, height = VIDEO_DIMENSIONS[(args.video_resolution or "720p", args.video_aspect_ratio or "16:9")]
+        video_common["width"] = width
+        video_common["height"] = height
+    else:
+        for key, value in (("height", args.video_height), ("width", args.video_width)):
+            if value is not None:
+                video_common[key] = value
+    if args.video_duration_seconds is not None:
+        video_common["num_frames"] = VIDEO_DURATIONS[args.video_duration_seconds]
+        video_common["frame_rate"] = 24
+    else:
+        for key, value in (("num_frames", args.video_num_frames), ("frame_rate", args.video_frame_rate)):
+            if value is not None:
+                video_common[key] = value
     video_results = {}
     if "text-to-video" in selected_cases:
         video_results["text_to_video"] = create_video_case(
@@ -587,7 +659,8 @@ def cmd_smoke_test(args: argparse.Namespace) -> None:
             {
                 **video_common,
                 "prompt": "Create a smooth transformation from the first icon to the second icon, stable centered composition",
-                "extra_body": {"image": [generated_image_url, edited_image_url]},
+                "mode": "keyframes",
+                "extra_body": {"image": [generated_image_url, edited_image_url], "mode": "keyframes"},
             },
             args,
         )
@@ -647,6 +720,9 @@ def build_parser() -> argparse.ArgumentParser:
     video.add_argument("--prompt", required=True)
     video.add_argument("--image", action="append", help="Input image URL. Repeat for multi-image or keyframes.")
     video.add_argument("--mode", choices=("ti2vid", "keyframes"))
+    video.add_argument("--resolution", choices=("480p", "720p", "1080p"))
+    video.add_argument("--aspect-ratio", choices=("16:9", "9:16", "1:1", "4:3", "3:4"))
+    video.add_argument("--duration-seconds", type=int, choices=(3, 5, 10, 18))
     video.add_argument("--height", type=int)
     video.add_argument("--width", type=int)
     video.add_argument("--num-frames", type=int, default=121)
@@ -672,6 +748,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     smoke = sub.add_parser("smoke-test", help="Run live text, image, and video API tests.")
     smoke.add_argument("--image-size", default="1024x768")
+    smoke.add_argument("--video-resolution", choices=("480p", "720p", "1080p"), default="480p")
+    smoke.add_argument("--video-aspect-ratio", choices=("16:9", "9:16", "1:1", "4:3", "3:4"), default="16:9")
+    smoke.add_argument("--video-duration-seconds", type=int, choices=(3, 5, 10, 18), default=3)
     smoke.add_argument("--video-height", type=int)
     smoke.add_argument("--video-width", type=int)
     smoke.add_argument("--video-num-frames", type=int, default=81)

@@ -3,3 +3,12 @@ __pycache__/
 .env
 .env.*
 .aider-desk/
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
+test-results/
+playwright-report/
+.agnes-dev.pid
+.agnes-dev.log
+.agnes-dev-run.cmd
