@@ -1,4 +1,4 @@
-# Agnes AI Generation Skill
+# Agnes AI Studio
 
 [中文](README.md)
 
